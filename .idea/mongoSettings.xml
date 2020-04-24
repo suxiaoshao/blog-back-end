@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="MongoConfiguration">
+    <option name="serverConfigurations">
+      <list>
+        <ServerConfiguration>
+          <option name="label" value="local" />
+          <option name="serverUrls">
+            <list>
+              <option value="localhost:27017" />
+            </list>
+          </option>
+          <option name="sshTunnelingConfiguration">
+            <SshTunnelingConfiguration />
+          </option>
+        </ServerConfiguration>
+        <ServerConfiguration>
+          <option name="label" value="linux" />
+          <option name="serverUrls">
+            <list>
+              <option value="localhost:27017" />
+            </list>
+          </option>
+          <option name="sshTunnelingConfiguration">
+            <SshTunnelingConfiguration>
+              <option name="privateKeyPath" value="D:\code\tool_and_database\linux\sushao_root" />
+              <option name="proxyUrl" value="122.51.194.238" />
+              <option name="proxyUser" value="root" />
+            </SshTunnelingConfiguration>
+          </option>
+        </ServerConfiguration>
+      </list>
+    </option>
+  </component>
+</project>

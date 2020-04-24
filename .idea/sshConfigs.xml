@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="122.51.194.238" id="cdf4b3f2-e311-466f-ad4e-4b0cc7007bba" keyPath="D:\code\tool_and_database\linux\sushao_root" port="22" customName="try" nameFormat="CUSTOM" username="root" />
+      <sshConfig host="122.51.194.238" id="ada5eb24-b692-4097-9d0c-e56204fca7c8" keyPath="D:\code\tool_and_database\linux\sushao_root" port="22" customName="try" nameFormat="CUSTOM" username="root" />
+    </configs>
+  </component>
+</project>

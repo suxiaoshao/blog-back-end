@@ -1,0 +1,9 @@
+markdown==3.2.1
+pytz==2019.3
+lxml==4.4.1
+pymongo==3.9.0
+gevent==1.4.0
+requests==2.22.0
+Flask_Cors==3.0.8
+Flask==1.1.1
+Werkzeug==0.16.0
