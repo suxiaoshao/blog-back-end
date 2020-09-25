@@ -37,8 +37,8 @@ func (article *ArticleContent) Read() *ArticleContent {
 func (article *ArticleContent) Update(content string, typeList []int64, title string) (*ArticleContent, error) {
 	//获取时间字符串和时间
 	timeStamp := time.Now().UnixNano() / 1000000
-	newArticle := getArticleContent(title, article.Aid, typeList, content, timeStamp)
-	_, err := articleDatabase.UpdateOne(context.TODO(), gin.H{"aid": article.Aid}, newArticle)
+	newArticle := getArticleContent(title, article.Aid, typeList, content, timeStamp, article.ReplyNum, article.ReadNum)
+	_, err := articleDatabase.UpdateOne(context.TODO(), gin.H{"aid": article.Aid}, gin.H{"$set": newArticle})
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (article *ArticleContent) GetReplyNum() (int64, error) {
 
 // 获取老
 func GetArticleContentByAid(aid int64) (*ArticleContent, error) {
-	article := getArticleContent("", 0, []int64{}, "", 0)
+	article := getArticleContent("", 0, []int64{}, "", 0, 0, 0)
 	err := articleDatabase.FindOne(context.TODO(), gin.H{"aid": aid}).Decode(article)
 	if err != nil {
 		return nil, err
@@ -125,13 +125,13 @@ func GetArticleContentByAid(aid int64) (*ArticleContent, error) {
 }
 
 // 获取
-func getArticleContent(title string, aid int64, typeList []int64, content string, timeStamp int64) *ArticleContent {
+func getArticleContent(title string, aid int64, typeList []int64, content string, timeStamp int64, replyNum int64, readNum int64) *ArticleContent {
 	return &ArticleContent{
 		Title:     title,
 		Aid:       aid,
 		Type:      typeList,
-		ReplyNum:  0,
-		ReadNum:   0,
+		ReplyNum:  replyNum,
+		ReadNum:   readNum,
 		Content:   content,
 		TimeStamp: timeStamp,
 	}
@@ -145,6 +145,5 @@ func CreateNewArticle(title string, typeList []int64, content string) (*ArticleC
 	if err != nil {
 		return nil, err
 	}
-	return getArticleContent(title, count+1, typeList, content, timeStamp), nil
+	return getArticleContent(title, count+1, typeList, content, timeStamp, 0, 0), nil
 }
-

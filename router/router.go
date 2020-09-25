@@ -14,7 +14,7 @@ func Router() *gin.Engine {
 		visitor.GET("/articleNum", controllers.ArticleNum)
 		visitor.GET("/articleList", controllers.ArticleList)
 		visitor.GET("/wallpaper/:pid", controllers.Wallpaper)
-		visitor.GET("/article/:aid", controllers.Article)
+		visitor.GET("/article/:aid", controllers.GetArticle)
 		visitor.GET("/typeList", controllers.TypeList)
 		visitor.GET("/replyNum/:aid", controllers.RePlyNum)
 		visitor.GET("/replyList/:aid", controllers.ReplyList)
@@ -27,7 +27,7 @@ func Router() *gin.Engine {
 		admin.GET("/checkLogin", func(context *gin.Context) {
 			context.JSON(200, gin.H{})
 		})
-		admin.POST("/article")
+		admin.POST("/article", controllers.UpdateArticle)
 	}
 	return r
 }
