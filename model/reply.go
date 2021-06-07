@@ -1,54 +1,72 @@
 package model
 
 import (
-	"context"
+	"blogServer/database"
+	"blogServer/util"
 	"errors"
-	"github.com/gin-gonic/gin"
 	"time"
 )
 
-type ReplyItem struct {
-	Aid       int64  `bson:"aid" json:"aid"`
-	Content   string `bson:"content" json:"content"`
-	Email     string `bson:"email" json:"email"`
-	Name      string `bson:"name" json:"name"`
-	Rid       int64  `bson:"rid" json:"rid"`
-	Url       string `bson:"url" json:"url"`
-	TimeStamp int64  `bson:"time_stamp" json:"timeStamp"`
+var ReplyManager = ReplyDao{}
+
+type Reply struct {
+	ArticleId  uint      `gorm:"article_id;not null"`
+	Content    string    `gorm:"content;not null"`
+	ReplyId    uint      `gorm:"reply_id;not null"`
+	Email      string    `gorm:"email;not null"`
+	Name       string    `gorm:"name;not null"`
+	CreateTime time.Time `gorm:"create_time;not null"`
+	url        *string   `gorm:"url"`
+	Ip         string    `gorm:"ip;not null"`
 }
 
-// 获取新评论
-func getNewReply(aid int64, content string, name string, email string, url string) (*ReplyItem, error) {
-	//获取时间字符串和时间
-	timeStamp := time.Now().UnixNano() / 1000000
-	//更新 article 的 reply_num 字段
-	updateResult, err := articleDatabase.UpdateOne(context.TODO(), gin.H{"aid": aid}, gin.H{"$inc": gin.H{"reply_num": 1}})
-	if err != nil || updateResult.MatchedCount == 0 {
-		return nil, errors.New("文章不存在")
-	}
-	// 获取评论数
-	rid, err := replyDatabase.CountDocuments(context.TODO(), gin.H{})
-	if err != nil {
-		return nil, err
-	}
-	rid++
-	return &ReplyItem{
-		Aid:       aid,
-		Content:   content,
-		Email:     email,
-		Name:      name,
-		Rid:       rid,
-		Url:       url,
-		TimeStamp: timeStamp,
-	}, nil
-}
-// 评论写入
-func (reply *ReplyItem) writeToDatabase() (*ReplyItem, error) {
-	_, err := replyDatabase.InsertOne(context.TODO(), &reply)
-	if err != nil {
-		return nil, err
-	}
-	return reply, nil
+func (reply Reply) TableName() string {
+	return "reply"
 }
 
+type ReplyDao struct{}
 
+// GetReplyByArticleId 获取文章评论
+func (replyDao ReplyDao) GetReplyByArticleId(articleId uint, preReplyId uint, limit int) ([]Reply, error) {
+	limit = util.If(limit > 50, 50, limit).(int)
+	var replies []Reply
+	result := database.MysqlDb.Where("article_id = ? AND reply_id > ?", articleId, preReplyId).Order("reply_id DESC").Limit(limit).Find(&replies)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if len(replies) == 0 {
+		return nil, errors.New("没有更多数据了")
+	}
+	return replies, nil
+}
+
+// GetReplyNumByArticleId 获取文章评论数
+func (replyDao ReplyDao) GetReplyNumByArticleId(articleId uint) (*int64, error) {
+	count := new(int64)
+	result := database.MysqlDb.Model(Reply{}).Where("article_id = ?", articleId).Count(count)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return count, nil
+}
+
+// AddNewReply 新建评论
+func (replyDao ReplyDao) AddNewReply(articleId uint, content string, email string, name string, ip string, url *string) (*Reply, error) {
+	// 添加 reply 数据
+	currentTime := time.Now()
+	reply := Reply{
+		ArticleId:  articleId,
+		Content:    content,
+		ReplyId:    0,
+		Email:      email,
+		Name:       name,
+		CreateTime: currentTime,
+		url:        url,
+		Ip:         ip,
+	}
+	tx := database.MysqlDb.Create(&reply)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &reply, nil
+}

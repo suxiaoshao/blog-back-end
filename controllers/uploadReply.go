@@ -1,26 +1,28 @@
 package controllers
 
 import (
+	"blogServer/model"
+	"blogServer/util"
 	"github.com/gin-gonic/gin"
-	"nextBlogServer/model"
-	"nextBlogServer/util"
 	"regexp"
 )
 
+type UploadReplyQuery struct {
+	ArticleId int64   `form:"articleId" json:"articleId"`
+	Content   string  `form:"content" json:"content"`
+	Email     string  `form:"email" json:"email"`
+	Name      string  `form:"name" json:"name"`
+	Url       *string `form:"url" json:"url"`
+}
+
 func UploadReply(context *gin.Context) {
 	//绑定上传数据
-	query := struct {
-		Aid     int64  `form:"aid"`
-		Content string `form:"content"`
-		Email   string `form:"email"`
-		Name    string `form:"name"`
-		Url     string `form:"url"`
-	}{
-		Aid:     0,
-		Content: "",
-		Email:   "",
-		Name:    "",
-		Url:     "",
+	query := UploadReplyQuery{
+		ArticleId: 0,
+		Content:   "",
+		Email:     "",
+		Name:      "",
+		Url:       nil,
 	}
 	err := context.BindJSON(&query)
 
@@ -29,21 +31,15 @@ func UploadReply(context *gin.Context) {
 
 	//判断 url 是否合法
 	urlRegex, _ := regexp.Compile("(^$|^(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]$)")
-	if err != nil || query.Aid == 0 || query.Content == "" || query.Name == "" ||
-		!emailRegex.MatchString(query.Email) || !urlRegex.MatchString(query.Url) {
-		context.JSON(200, util.ReturnMessageError("上传数据错误", gin.H{}))
-		return
-	}
-	// 获取文章
-	article, err := model.GetArticleContentByAid(query.Aid)
-	if err != nil {
-		context.JSON(200, util.ReturnMessageError("文章不存在", gin.H{}))
+	if err != nil || query.ArticleId == 0 || query.Content == "" || query.Name == "" ||
+		!emailRegex.MatchString(query.Email) || !urlRegex.MatchString(*query.Url) {
+		context.JSON(200, util.ReturnMessageError("上传数据错误", nil))
 		return
 	}
 	// 获取新评论
-	newReply, err := article.AddNewReply(query.Content, query.Name, query.Email, query.Url)
+	newReply, err := model.ReplyManager.AddNewReply(uint(query.ArticleId), query.Content, query.Email, query.Name, context.ClientIP(), query.Url)
 	if err != nil {
-		context.JSON(200, util.ReturnMessageError("数据保存错误", gin.H{}))
+		context.JSON(200, util.ReturnMessageError("数据保存错误", nil))
 		return
 	}
 	context.JSON(200, util.ReturnMessageSuccess(newReply))
