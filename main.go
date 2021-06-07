@@ -1,7 +1,7 @@
 package main
 
 import (
-	"nextBlogServer/router"
+	"blogServer/router"
 )
 
 func main() {

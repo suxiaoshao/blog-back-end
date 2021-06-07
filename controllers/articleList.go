@@ -1,38 +1,34 @@
 package controllers
 
 import (
+	"blogServer/model"
+	"blogServer/util"
 	"github.com/gin-gonic/gin"
-	"nextBlogServer/model"
-	"nextBlogServer/util"
 )
 
+type ArticleListQuery struct {
+	LabelIds     []uint `form:"labelIds"`
+	PreArticleId uint   `form:"preArticleId"`
+	Limit        uint   `form:"limit"`
+}
+
 func ArticleList(context *gin.Context) {
-	query := struct {
-		SearchName string  `form:"searchName"`
-		Type       []int64 `form:"type"`
-		Offset     int64   `form:"offset"`
-		Limit      int64   `form:"limit"`
-		Sort       int64   `form:"sort"`
-		AllType    bool    `form:"allType"`
-	}{
-		SearchName: "",
-		Type:       []int64{},
-		Offset:     0,
-		Limit:      20,
-		Sort:       -1,
-		AllType:    false,
+	query := ArticleListQuery{
+		LabelIds:     []uint{},
+		Limit:        20,
+		PreArticleId: 0,
 	}
+	// 解析上传内容
 	err := context.BindQuery(&query)
 	if err != nil {
-		context.JSON(200, util.ReturnMessageError("query数据错误", gin.H{"count": 0}))
+		context.JSON(200, util.ReturnMessageError("上传数据错误", gin.H{"count": 0}))
 		return
 	}
-
-	searchQuery:=model.GetSearchQuery(query.Offset, query.Limit, query.SearchName, query.Type, query.Sort, query.AllType)
-	articleList, err := searchQuery.GetArticleList()
+	// 获取数据
+	articleInfos, err := model.ArticleManager.GetArticleInfoList(query.LabelIds, query.Limit, query.PreArticleId)
 	if err != nil {
-		context.JSON(200, util.ReturnMessageError("数据获取失败", gin.H{"articleList": make([]model.ArticleItem, 0)}))
+		context.JSON(200, util.ReturnMessageError("数据获取失败", nil))
 		return
 	}
-	context.JSON(200, util.ReturnMessageSuccess(gin.H{"articleList": articleList}))
+	context.JSON(200, util.ReturnMessageSuccess(gin.H{"articleList": articleInfos}))
 }

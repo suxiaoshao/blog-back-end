@@ -1,149 +1,183 @@
 package model
 
 import (
-	"context"
-	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"blogServer/database"
+	"blogServer/util"
+	"errors"
 	"time"
 )
 
-type ArticleItem struct {
-	Title     string  `bson:"title" json:"title"`
-	Aid       int64   `bson:"aid" json:"aid"`
-	Type      []int64 `bson:"type" json:"type"`
-	ReplyNum  int64   `bson:"reply_num" json:"replyNum"`
-	ReadNum   int64   `bson:"read_num" json:"readNum"`
-	TimeStamp int64   `bson:"time_stamp" json:"timeStamp"`
+var ArticleManager = ArticleDao{}
+
+// ArticleDetail 文章详细信息
+type ArticleDetail struct {
+	ArticleId  uint      `json:"articleId"`
+	Content    string    `json:"content"`
+	Title      string    `json:"title"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+	ReadNum    int64     `json:"readNum"`
+	ReplyNum   int64     `json:"replyNum"`
+	Labels     []Label   `json:"labels"`
 }
 
-type ArticleContent struct {
-	Title     string  `bson:"title" json:"title"`
-	Aid       int64   `bson:"aid" json:"aid"`
-	Type      []int64 `bson:"type" json:"type"`
-	ReplyNum  int64   `bson:"reply_num" json:"replyNum"`
-	ReadNum   int64   `bson:"read_num" json:"readNum"`
-	Content   string  `bson:"content" json:"content"`
-	TimeStamp int64   `bson:"time_stamp" json:"timeStamp"`
+// ArticleInfo 文章列表信息
+type ArticleInfo struct {
+	ArticleId  uint      `json:"articleId"`
+	Title      string    `json:"title"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+	ReadNum    int64     `json:"readNum"`
+	ReplyNum   int64     `json:"replyNum"`
+	Labels     []Label   `json:"labels"`
 }
 
-// 阅读数加一
-func (article *ArticleContent) Read() *ArticleContent {
-	article.ReadNum = article.ReadNum + 1
-	_, _ = articleDatabase.UpdateOne(context.TODO(), gin.H{"aid": article.Aid}, gin.H{"$set": gin.H{"read_num": article.ReadNum}})
-	return article
+// Article 数据库中的文章数据
+type Article struct {
+	ArticleId  uint      `gorm:"article_id;primaryKey;not null"`
+	Content    string    `gorm:"content;not null"`
+	Title      string    `gorm:"title;not null"`
+	CreateTime time.Time `gorm:"create_time;not null"`
+	UpdateTime time.Time `gorm:"update_time;not null"`
 }
 
-// 更新
-func (article *ArticleContent) Update(content string, typeList []int64, title string) (*ArticleContent, error) {
-	//获取时间字符串和时间
-	timeStamp := time.Now().UnixNano() / 1000000
-	newArticle := getArticleContent(title, article.Aid, typeList, content, timeStamp, article.ReplyNum, article.ReadNum)
-	_, err := articleDatabase.UpdateOne(context.TODO(), gin.H{"aid": article.Aid}, gin.H{"$set": newArticle})
+// TableName 绑定表名
+func (article Article) TableName() string {
+	return "article"
+}
+
+// GetArticleDetail 获取文章详细信息
+func (article Article) GetArticleDetail() (*ArticleDetail, error) {
+	articleInfo, err := article.GetArticleInfo()
 	if err != nil {
 		return nil, err
 	}
-	return newArticle, nil
+	return &ArticleDetail{
+		ArticleId:  articleInfo.ArticleId,
+		Title:      articleInfo.Title,
+		CreateTime: articleInfo.CreateTime,
+		UpdateTime: articleInfo.UpdateTime,
+		ReplyNum:   articleInfo.ReplyNum,
+		ReadNum:    articleInfo.ReadNum,
+		Labels:     articleInfo.Labels,
+		Content:    article.Content,
+	}, nil
 }
 
-// 写入数据库
-func (article *ArticleContent) WriteToDatabase() (*ArticleContent, error) {
-	_, err := articleDatabase.InsertOne(context.TODO(), article)
+// GetArticleInfo 获取文章详细信息
+func (article Article) GetArticleInfo() (*ArticleInfo, error) {
+	readNum, err := ArticleReadManger.GetReadNumByArticleId(article.ArticleId)
 	if err != nil {
 		return nil, err
+	}
+	replyNum, err := ReplyManager.GetReplyNumByArticleId(article.ArticleId)
+	if err != nil {
+		return nil, err
+	}
+	labels, err := LabelManager.GetLabelsByArticleId(article.ArticleId)
+	if err != nil {
+		return nil, err
+	}
+	return &ArticleInfo{
+		ArticleId:  article.ArticleId,
+		Title:      article.Title,
+		CreateTime: article.CreateTime,
+		UpdateTime: article.UpdateTime,
+		ReplyNum:   *replyNum,
+		ReadNum:    *readNum,
+		Labels:     labels,
+	}, nil
+}
+
+// ReadAdd 阅读数加一
+func (article Article) ReadAdd(ip string) error {
+	err := ArticleReadManger.AddArticleRead(ip, article.ArticleId)
+	return err
+}
+
+// ArticleDao 文章操作
+type ArticleDao struct {
+}
+
+// GetArticleByArticleId 通过 id 获取文章数据
+func (articleDao ArticleDao) GetArticleByArticleId(articleId uint) (*Article, error) {
+	var article = new(Article)
+	result := database.MysqlDb.First(article, articleId)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 	return article, nil
 }
 
-//添加新评论
-func (article *ArticleContent) AddNewReply(content string, name string, email string, url string) (*ReplyItem, error) {
-	newReply, err := getNewReply(article.Aid, content, name, email, url)
-	if err != nil {
-		return nil, err
+// AddArticle 添加 article 数据
+func (articleDao ArticleDao) AddArticle(title string, content string, labelIds []uint) error {
+	// 添加 article 数据
+	currentTime := time.Now()
+	article := Article{
+		Content:    content,
+		Title:      title,
+		CreateTime: currentTime,
+		UpdateTime: currentTime,
 	}
-	newReply, err = newReply.writeToDatabase()
-	if err != nil {
-		return nil, err
+	db := database.MysqlDb.Model(article).Create(&article)
+	if db.Error != nil {
+		return db.Error
 	}
-	return newReply, nil
-}
-
-// 获取评论链接
-func (article *ArticleContent) GetReplyList(offset int64, limit int64) ([]ReplyItem, error) {
-	//限制limit和offset的范围
-	if limit > 50 || limit < 0 {
-		limit = 50
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	Result := ReplyItem{
-		Aid:     0,
-		Content: "",
-		Email:   "",
-		Name:    "",
-		Rid:     -1,
-		Url:     "",
-	}
-	resultList := make([]ReplyItem, 0)
-
-	//生成 findOption
-	findOption := options.Find()
-	findOption.SetSkip(offset)
-	findOption.SetLimit(limit)
-
-	cur, err := replyDatabase.Find(context.TODO(), gin.H{"aid": article.Aid}, findOption)
-	if err != nil {
-		return resultList, err
-	}
-	for cur.Next(context.TODO()) {
-		result := Result
-		err = cur.Decode(&result)
-		if err == nil && result.Rid != -1 {
-			resultList = append(resultList, result)
+	// 添加标签
+	for _, labelId := range labelIds {
+		err := ArticleLabelManager.AddLabel(article.ArticleId, labelId)
+		if err != nil {
+			return err
 		}
 	}
-	return resultList, nil
+	return nil
 }
 
-// 获取评论数
-func (article *ArticleContent) GetReplyNum() (int64, error) {
-	count, err := replyDatabase.CountDocuments(context.TODO(), gin.H{"aid": article.Aid})
+// UpdateArticle 更新 article 数据
+func (articleDao ArticleDao) UpdateArticle(articleId uint, title string, content string, labelIds []uint) error {
+	// 获取文章数据
+	var article = new(Article)
+	db := database.MysqlDb.First(article, articleId)
+	if db.Error != nil {
+		return db.Error
+	}
+	// 清除 label 数据
+	err := ArticleLabelManager.ClearByArticleId(article.ArticleId)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	return count, nil
+	// 添加标签
+	for _, labelId := range labelIds {
+		err := ArticleLabelManager.AddLabel(article.ArticleId, labelId)
+		if err != nil {
+			return err
+		}
+	}
+	// 更新数据
+	article.Title = title
+	article.Content = content
+	article.UpdateTime = time.Now()
+	database.MysqlDb.Model(&article).Updates(article)
+	return nil
 }
 
-// 获取老
-func GetArticleContentByAid(aid int64) (*ArticleContent, error) {
-	article := getArticleContent("", 0, []int64{}, "", 0, 0, 0)
-	err := articleDatabase.FindOne(context.TODO(), gin.H{"aid": aid}).Decode(article)
-	if err != nil {
-		return nil, err
-	}
-	return article, nil
-}
+// GetArticleInfoList 获取一列 articleInfo 数据
+func (articleDao ArticleDao) GetArticleInfoList(labelIds []uint, preArticleId uint, limit uint) ([]ArticleInfo, error) {
+	// 初始化数据
+	limit = util.If(limit > 50, 50, limit).(uint)
 
-// 获取
-func getArticleContent(title string, aid int64, typeList []int64, content string, timeStamp int64, replyNum int64, readNum int64) *ArticleContent {
-	return &ArticleContent{
-		Title:     title,
-		Aid:       aid,
-		Type:      typeList,
-		ReplyNum:  replyNum,
-		ReadNum:   readNum,
-		Content:   content,
-		TimeStamp: timeStamp,
+	var articles []Article
+	database.MysqlDb.Joins("join article_label al on article.article_id = al.article_id and  label_id in (?)", labelIds).Order("article_id DESC").Where("article.article_id > ?", preArticleId).Limit(int(limit)).Find(&articles)
+	if len(articles) == 0 {
+		return nil, errors.New("没有更多数据了")
 	}
-}
-
-// 创建新文章
-func CreateNewArticle(title string, typeList []int64, content string) (*ArticleContent, error) {
-	//获取时间字符串和时间
-	timeStamp := time.Now().UnixNano() / 1000000
-	count, err := articleDatabase.CountDocuments(context.TODO(), gin.H{})
-	if err != nil {
-		return nil, err
+	var articleInfos []ArticleInfo
+	for _, article := range articles {
+		articleInfo, err := article.GetArticleInfo()
+		if err != nil {
+			return nil, err
+		}
+		articleInfos = append(articleInfos, *articleInfo)
 	}
-	return getArticleContent(title, count+1, typeList, content, timeStamp, 0, 0), nil
+	return articleInfos, nil
 }
